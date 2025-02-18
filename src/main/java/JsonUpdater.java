@@ -2,9 +2,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,6 +18,7 @@ import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Properties;
 
 public class JsonUpdater {
     private JFrame frame;
@@ -22,92 +26,234 @@ public class JsonUpdater {
     private JTextField directoryPathField;
     private JTextArea logArea;
     private JSpinner rangeSpinner;
+    private boolean darkMode = false;
+    private Color lightBackground = new Color(240, 240, 240);
+    private Color darkBackground = new Color(43, 43, 43);
+    private Color lightText = new Color(0, 0, 0);
+    private Color darkText = new Color(255, 255, 255);
+    private Color lightButtonBg = new Color(70, 130, 180);
+    private Color darkButtonBg = new Color(100, 100, 100);
+    private Color lightButtonHover = new Color(100, 149, 237);
+    private Color darkButtonHover = new Color(130, 130, 130);
+    private Color lightBorder = new Color(100, 100, 100);
+    private Color darkBorder = new Color(70, 70, 70);
+    private Color lightLogArea = new Color(250, 250, 250);
+    private Color darkLogArea = new Color(30, 30, 30);
+    private static final String SETTINGS_FILE = "jsonupdater.properties";
+    private Properties settings;
 
     public JsonUpdater() {
+        loadSettings();
         createAndShowGUI();
+    }
+
+    private void loadSettings() {
+        settings = new Properties();
+        try {
+            File settingsFile = new File(SETTINGS_FILE);
+            if (settingsFile.exists()) {
+                try (FileInputStream in = new FileInputStream(settingsFile)) {
+                    settings.load(in);
+                    darkMode = Boolean.parseBoolean(settings.getProperty("darkMode", "false"));
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveSettings() {
+        try {
+            settings.setProperty("darkMode", String.valueOf(darkMode));
+            try (FileOutputStream out = new FileOutputStream(SETTINGS_FILE)) {
+                settings.store(out, "JSON Updater Settings");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private void createAndShowGUI() {
         frame = new JFrame("JSON File Updater");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(600, 400);
+        frame.setSize(800, 600);
         frame.setLayout(new BorderLayout(10, 10));
+        updateTheme(frame.getContentPane());
+
+        // Create main panel with padding
+        JPanel mainPanel = new JPanel(new BorderLayout(20, 20));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        updateTheme(mainPanel);
 
         // Create panels
         JPanel inputPanel = new JPanel(new GridBagLayout());
+        updateTheme(inputPanel);
+        inputPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(getCurrentBorderColor(), 1),
+                "Settings",
+                TitledBorder.DEFAULT_JUSTIFICATION,
+                TitledBorder.DEFAULT_POSITION,
+                new Font("Arial", Font.BOLD, 12),
+                getCurrentTextColor()
+            ),
+            BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(5, 5, 5, 5);
 
-        // Directory selection
+        // Theme toggle button
+        JButton themeButton = createStyledButton("Toggle Dark Mode");
         gbc.gridx = 0;
         gbc.gridy = 0;
-        inputPanel.add(new JLabel("Directory:"), gbc);
+        gbc.gridwidth = 3;
+        inputPanel.add(themeButton, gbc);
+        gbc.gridwidth = 1;
 
-        directoryPathField = new JTextField(20);
-        gbc.gridx = 1;
+        // Create a specific panel for directory selection with FlowLayout
+        JPanel directoryPanel = new JPanel(new GridBagLayout());
+        directoryPanel.setBackground(darkMode ? darkBackground : lightBackground);
+        GridBagConstraints dirGbc = new GridBagConstraints();
+        dirGbc.insets = new Insets(2, 2, 2, 2); // Reduced spacing
+        
+        // Directory Label
+        dirGbc.gridx = 0;
+        dirGbc.gridy = 0;
+        dirGbc.weightx = 0.0;
+        dirGbc.fill = GridBagConstraints.NONE;
+        dirGbc.anchor = GridBagConstraints.WEST;
+        JLabel dirLabel = new JLabel("Directory:");
+        dirLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        dirLabel.setForeground(getCurrentTextColor());
+        directoryPanel.add(dirLabel, dirGbc);
+
+        // Directory Text Field
+        dirGbc.gridx = 1;
+        dirGbc.weightx = 1.0;
+        dirGbc.fill = GridBagConstraints.HORIZONTAL;
+        dirGbc.insets = new Insets(2, 5, 2, 5); // Add some padding between components
+        directoryPathField = new JTextField();
+        directoryPathField.setPreferredSize(new Dimension(0, 25)); // Slightly smaller height
+        updateTextFieldTheme(directoryPathField);
+        directoryPanel.add(directoryPathField, dirGbc);
+
+        // Browse Button
+        dirGbc.gridx = 2;
+        dirGbc.weightx = 0.0;
+        dirGbc.fill = GridBagConstraints.NONE;
+        dirGbc.insets = new Insets(2, 2, 2, 2);
+        JButton browseButton = createStyledButton("Browse");
+        browseButton.setPreferredSize(new Dimension(80, 25)); // Smaller size
+        directoryPanel.add(browseButton, dirGbc);
+
+        // Add directory panel to input panel
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.gridwidth = 3;
         gbc.weightx = 1.0;
-        inputPanel.add(directoryPathField, gbc);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        inputPanel.add(directoryPanel, gbc);
+        gbc.gridwidth = 1; // Reset gridwidth
 
-        JButton browseButton = new JButton("Browse");
-        gbc.gridx = 2;
+        // Reset weightx for other components
         gbc.weightx = 0.0;
-        inputPanel.add(browseButton, gbc);
 
         // Base name input
         gbc.gridx = 0;
-        gbc.gridy = 1;
-        inputPanel.add(new JLabel("Base Name:"), gbc);
+        gbc.gridy = 2;
+        JLabel baseLabel = new JLabel("Base Name:");
+        baseLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        baseLabel.setForeground(getCurrentTextColor());
+        inputPanel.add(baseLabel, gbc);
 
         baseNameField = new JTextField(20);
+        baseNameField.setPreferredSize(new Dimension(0, 30));
+        updateTextFieldTheme(baseNameField);
         gbc.gridx = 1;
         gbc.weightx = 1.0;
         inputPanel.add(baseNameField, gbc);
 
-        // Process button
-        JButton processButton = new JButton("Process Files");
-        gbc.gridx = 1;
-        gbc.gridy = 2;
-        gbc.gridwidth = 2;
-        inputPanel.add(processButton, gbc);
-
         // Add Range Spinner
         gbc.gridx = 0;
-        gbc.gridy = 4;
-        inputPanel.add(new JLabel("Range (units):"), gbc);
+        gbc.gridy = 3;
+        JLabel rangeLabel = new JLabel("Range (units):");
+        rangeLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        rangeLabel.setForeground(getCurrentTextColor());
+        inputPanel.add(rangeLabel, gbc);
 
         SpinnerNumberModel spinnerModel = new SpinnerNumberModel(40, 1, 1000, 1);
         rangeSpinner = new JSpinner(spinnerModel);
+        rangeSpinner.setPreferredSize(new Dimension(0, 30));
+        updateSpinnerTheme(rangeSpinner);
         gbc.gridx = 1;
         inputPanel.add(rangeSpinner, gbc);
 
-        // Add Check Range button
-        JButton checkRangeButton = new JButton("Check Position Range");
-        gbc.gridx = 1;
-        gbc.gridy = 5;
-        gbc.gridwidth = 2;
-        inputPanel.add(checkRangeButton, gbc);
+        // Button panel
+        JPanel buttonPanel = new JPanel(new GridLayout(3, 1, 0, 10));
+        updateTheme(buttonPanel);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
 
-        // Add Check Duplicates button
-        JButton checkDuplicatesButton = new JButton("Check Duplicate Positions");
-        gbc.gridx = 1;
-        gbc.gridy = 6;  // Put it after the range checker
-        gbc.gridwidth = 2;
-        inputPanel.add(checkDuplicatesButton, gbc);
+        JButton processButton = createStyledButton("Process Files");
+        JButton checkRangeButton = createStyledButton("Check Position Range");
+        JButton checkDuplicatesButton = createStyledButton("Check Duplicate Positions");
 
-        // Log area
+        buttonPanel.add(processButton);
+        buttonPanel.add(checkRangeButton);
+        buttonPanel.add(checkDuplicatesButton);
+
+        // Log area with title
+        JPanel logPanel = new JPanel(new BorderLayout(5, 5));
+        updateTheme(logPanel);
+        logPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(getCurrentBorderColor(), 1),
+                "Log",
+                TitledBorder.DEFAULT_JUSTIFICATION,
+                TitledBorder.DEFAULT_POSITION,
+                new Font("Arial", Font.BOLD, 12),
+                getCurrentTextColor()
+            ),
+            BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+
         logArea = new JTextArea();
         logArea.setEditable(false);
+        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        updateLogAreaTheme(logArea);
         JScrollPane scrollPane = new JScrollPane(logArea);
-        scrollPane.setPreferredSize(new Dimension(500, 200));
+        scrollPane.setPreferredSize(new Dimension(0, 300));
+        logPanel.add(scrollPane, BorderLayout.CENTER);
 
-        frame.add(inputPanel, BorderLayout.NORTH);
-        frame.add(scrollPane, BorderLayout.CENTER);
+        // Add all components to main panel
+        mainPanel.add(inputPanel, BorderLayout.NORTH);
+        mainPanel.add(buttonPanel, BorderLayout.CENTER);
+        mainPanel.add(logPanel, BorderLayout.SOUTH);
+
+        frame.add(mainPanel);
+
+        // Theme toggle listener
+        themeButton.addActionListener(e -> {
+            darkMode = !darkMode;
+            updateAllThemes(mainPanel);
+            frame.repaint();
+            saveSettings();
+        });
 
         // Add button listeners
         browseButton.addActionListener(e -> {
-            JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            JFileChooser fileChooser = createStyledFileChooser();
+            
+            String currentPath = directoryPathField.getText();
+            if (!currentPath.isEmpty()) {
+                File currentDir = new File(currentPath);
+                if (currentDir.exists()) {
+                    fileChooser.setCurrentDirectory(currentDir);
+                }
+            }
+            
             if (fileChooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
                 directoryPathField.setText(fileChooser.getSelectedFile().getAbsolutePath());
             }
@@ -171,6 +317,88 @@ public class JsonUpdater {
         frame.pack();
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
+    }
+
+    private void updateAllThemes(Container container) {
+        updateTheme(container);
+        for (Component comp : container.getComponents()) {
+            if (comp instanceof JLabel) {
+                ((JLabel) comp).setForeground(getCurrentTextColor());
+            } else if (comp instanceof JTextField) {
+                updateTextFieldTheme((JTextField) comp);
+            } else if (comp instanceof JSpinner) {
+                updateSpinnerTheme((JSpinner) comp);
+            } else if (comp instanceof JButton) {
+                updateButtonTheme((JButton) comp);
+            } else if (comp instanceof JTextArea) {
+                updateLogAreaTheme((JTextArea) comp);
+            } else if (comp instanceof Container) {
+                updateAllThemes((Container) comp);
+            }
+            
+            if (comp instanceof JComponent) {
+                JComponent jcomp = (JComponent) comp;
+                if (jcomp.getBorder() instanceof TitledBorder) {
+                    TitledBorder border = (TitledBorder) jcomp.getBorder();
+                    border.setTitleColor(getCurrentTextColor());
+                }
+            }
+        }
+    }
+
+    private void updateTheme(Container container) {
+        container.setBackground(darkMode ? darkBackground : lightBackground);
+    }
+
+    private void updateTextFieldTheme(JTextField textField) {
+        textField.setBackground(darkMode ? darkLogArea : lightLogArea);
+        textField.setForeground(darkMode ? darkText : lightText);
+        textField.setCaretColor(darkMode ? darkText : lightText);
+    }
+
+    private void updateSpinnerTheme(JSpinner spinner) {
+        spinner.getEditor().getComponent(0).setBackground(darkMode ? darkLogArea : lightLogArea);
+        spinner.getEditor().getComponent(0).setForeground(darkMode ? darkText : lightText);
+    }
+
+    private void updateButtonTheme(JButton button) {
+        button.setBackground(darkMode ? darkButtonBg : lightButtonBg);
+        button.setForeground(darkMode ? darkText : Color.WHITE);
+    }
+
+    private void updateLogAreaTheme(JTextArea logArea) {
+        logArea.setBackground(darkMode ? darkLogArea : lightLogArea);
+        logArea.setForeground(darkMode ? darkText : lightText);
+        logArea.setCaretColor(darkMode ? darkText : lightText);
+    }
+
+    private Color getCurrentTextColor() {
+        return darkMode ? darkText : lightText;
+    }
+
+    private Color getCurrentBorderColor() {
+        return darkMode ? darkBorder : lightBorder;
+    }
+
+    private JButton createStyledButton(String text) {
+        JButton button = new JButton(text);
+        button.setPreferredSize(new Dimension(0, 35));
+        button.setFont(new Font("Arial", Font.BOLD, 12));
+        button.setFocusPainted(false);
+        updateButtonTheme(button);
+        button.setBorder(BorderFactory.createEmptyBorder(5, 15, 5, 15));
+        
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                button.setBackground(darkMode ? darkButtonHover : lightButtonHover);
+            }
+
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                button.setBackground(darkMode ? darkButtonBg : lightButtonBg);
+            }
+        });
+        
+        return button;
     }
 
     private void processJsonFiles(String directoryPath, String baseFileName) {
@@ -423,6 +651,78 @@ public class JsonUpdater {
             logArea.append(message + "\n");
             logArea.setCaretPosition(logArea.getDocument().getLength());
         });
+    }
+
+    private JFileChooser createStyledFileChooser() {
+        JFileChooser fileChooser = new JFileChooser() {
+            @Override
+            protected JDialog createDialog(Component parent) {
+                JDialog dialog = super.createDialog(parent);
+                dialog.setSize(800, 600);  // Larger size
+                return dialog;
+            }
+        };
+        
+        fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        fileChooser.setDialogTitle("Select Directory");
+        
+        // Style the file chooser
+        updateFileChooserTheme(fileChooser);
+        
+        return fileChooser;
+    }
+
+    private void updateFileChooserTheme(JFileChooser chooser) {
+        // Update the look of all components in the file chooser
+        updateAllThemes(chooser);
+        
+        // Style specific components
+        for (Component c : chooser.getComponents()) {
+            if (c instanceof JPanel) {
+                c.setBackground(darkMode ? darkBackground : lightBackground);
+                for (Component sub : ((JPanel) c).getComponents()) {
+                    if (sub instanceof JTextField) {
+                        updateTextFieldTheme((JTextField) sub);
+                    } else if (sub instanceof JButton) {
+                        JButton button = (JButton) sub;
+                        button.setFont(new Font("Arial", Font.BOLD, 12));
+                        updateButtonTheme(button);
+                    } else if (sub instanceof JComboBox) {
+                        sub.setBackground(darkMode ? darkLogArea : lightLogArea);
+                        sub.setForeground(darkMode ? darkText : lightText);
+                    } else if (sub instanceof JList) {
+                        sub.setBackground(darkMode ? darkLogArea : lightLogArea);
+                        sub.setForeground(darkMode ? darkText : lightText);
+                    }
+                }
+            }
+        }
+
+        // Update the file list/table
+        try {
+            JList<?> list = (JList<?>) findComponent(chooser, JList.class);
+            if (list != null) {
+                list.setBackground(darkMode ? darkLogArea : lightLogArea);
+                list.setForeground(darkMode ? darkText : lightText);
+            }
+        } catch (Exception e) {
+            // Ignore if component not found
+        }
+    }
+
+    private Component findComponent(Container container, Class<?> componentClass) {
+        for (Component c : container.getComponents()) {
+            if (componentClass.isInstance(c)) {
+                return c;
+            }
+            if (c instanceof Container) {
+                Component found = findComponent((Container) c, componentClass);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     public static void main(String[] args) {
