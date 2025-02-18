@@ -112,11 +112,11 @@ public class JsonUpdater {
         inputPanel.add(themeButton, gbc);
         gbc.gridwidth = 1;
 
-        // Create a specific panel for directory selection with FlowLayout
+        // Create a specific panel for directory selection with GridBagLayout
         JPanel directoryPanel = new JPanel(new GridBagLayout());
-        directoryPanel.setBackground(darkMode ? darkBackground : lightBackground);
+        updateTheme(directoryPanel); // Initial theme
         GridBagConstraints dirGbc = new GridBagConstraints();
-        dirGbc.insets = new Insets(2, 2, 2, 2); // Reduced spacing
+        dirGbc.insets = new Insets(2, 2, 2, 2);
         
         // Directory Label
         dirGbc.gridx = 0;
@@ -133,9 +133,9 @@ public class JsonUpdater {
         dirGbc.gridx = 1;
         dirGbc.weightx = 1.0;
         dirGbc.fill = GridBagConstraints.HORIZONTAL;
-        dirGbc.insets = new Insets(2, 5, 2, 5); // Add some padding between components
+        dirGbc.insets = new Insets(2, 5, 2, 5);
         directoryPathField = new JTextField();
-        directoryPathField.setPreferredSize(new Dimension(0, 25)); // Slightly smaller height
+        directoryPathField.setPreferredSize(new Dimension(0, 25));
         updateTextFieldTheme(directoryPathField);
         directoryPanel.add(directoryPathField, dirGbc);
 
@@ -145,7 +145,7 @@ public class JsonUpdater {
         dirGbc.fill = GridBagConstraints.NONE;
         dirGbc.insets = new Insets(2, 2, 2, 2);
         JButton browseButton = createStyledButton("Browse");
-        browseButton.setPreferredSize(new Dimension(80, 25)); // Smaller size
+        browseButton.setPreferredSize(new Dimension(80, 25));
         directoryPanel.add(browseButton, dirGbc);
 
         // Add directory panel to input panel
@@ -156,7 +156,7 @@ public class JsonUpdater {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(5, 5, 5, 5);
         inputPanel.add(directoryPanel, gbc);
-        gbc.gridwidth = 1; // Reset gridwidth
+        gbc.gridwidth = 1;
 
         // Reset weightx for other components
         gbc.weightx = 0.0;
@@ -238,6 +238,11 @@ public class JsonUpdater {
         themeButton.addActionListener(e -> {
             darkMode = !darkMode;
             updateAllThemes(mainPanel);
+            // Explicitly update directory panel components
+            updateTheme(directoryPanel);
+            dirLabel.setForeground(getCurrentTextColor());
+            updateTextFieldTheme(directoryPathField);
+            updateButtonTheme(browseButton);
             frame.repaint();
             saveSettings();
         });
@@ -332,6 +337,9 @@ public class JsonUpdater {
                 updateButtonTheme((JButton) comp);
             } else if (comp instanceof JTextArea) {
                 updateLogAreaTheme((JTextArea) comp);
+            } else if (comp instanceof JPanel) {
+                updateTheme((JPanel)comp);
+                updateAllThemes((Container) comp);
             } else if (comp instanceof Container) {
                 updateAllThemes((Container) comp);
             }
@@ -658,7 +666,13 @@ public class JsonUpdater {
             @Override
             protected JDialog createDialog(Component parent) {
                 JDialog dialog = super.createDialog(parent);
-                dialog.setSize(800, 600);  // Larger size
+                dialog.setSize(800, 600);
+                
+                // Style the dialog and all its components
+                SwingUtilities.invokeLater(() -> {
+                    styleFileChooserDialog(dialog);
+                });
+                
                 return dialog;
             }
         };
@@ -666,63 +680,80 @@ public class JsonUpdater {
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         fileChooser.setDialogTitle("Select Directory");
         
-        // Style the file chooser
-        updateFileChooserTheme(fileChooser);
-        
         return fileChooser;
     }
 
-    private void updateFileChooserTheme(JFileChooser chooser) {
-        // Update the look of all components in the file chooser
-        updateAllThemes(chooser);
-        
-        // Style specific components
-        for (Component c : chooser.getComponents()) {
-            if (c instanceof JPanel) {
+    private void styleFileChooserDialog(Container container) {
+        for (Component c : container.getComponents()) {
+            if (c instanceof JPanel || c instanceof JDialog) {
                 c.setBackground(darkMode ? darkBackground : lightBackground);
-                for (Component sub : ((JPanel) c).getComponents()) {
-                    if (sub instanceof JTextField) {
-                        updateTextFieldTheme((JTextField) sub);
-                    } else if (sub instanceof JButton) {
-                        JButton button = (JButton) sub;
-                        button.setFont(new Font("Arial", Font.BOLD, 12));
-                        updateButtonTheme(button);
-                    } else if (sub instanceof JComboBox) {
-                        sub.setBackground(darkMode ? darkLogArea : lightLogArea);
-                        sub.setForeground(darkMode ? darkText : lightText);
-                    } else if (sub instanceof JList) {
-                        sub.setBackground(darkMode ? darkLogArea : lightLogArea);
-                        sub.setForeground(darkMode ? darkText : lightText);
-                    }
-                }
             }
-        }
-
-        // Update the file list/table
-        try {
-            JList<?> list = (JList<?>) findComponent(chooser, JList.class);
-            if (list != null) {
+            
+            if (c instanceof JTextField) {
+                JTextField tf = (JTextField) c;
+                tf.setBackground(darkMode ? darkLogArea : lightLogArea);
+                tf.setForeground(darkMode ? darkText : lightText);
+                tf.setCaretColor(darkMode ? darkText : lightText);
+            }
+            
+            if (c instanceof JList) {
+                JList<?> list = (JList<?>) c;
                 list.setBackground(darkMode ? darkLogArea : lightLogArea);
                 list.setForeground(darkMode ? darkText : lightText);
             }
-        } catch (Exception e) {
-            // Ignore if component not found
-        }
-    }
+            
+            if (c instanceof JTable) {
+                JTable table = (JTable) c;
+                table.setBackground(darkMode ? darkLogArea : lightLogArea);
+                table.setForeground(darkMode ? darkText : lightText);
+                table.setSelectionBackground(darkMode ? darkButtonHover : lightButtonHover);
+                table.setSelectionForeground(darkMode ? darkText : lightText);
+                table.setGridColor(darkMode ? darkBorder : lightBorder);
+            }
+            
+            if (c instanceof JScrollPane) {
+                JScrollPane scrollPane = (JScrollPane) c;
+                scrollPane.getViewport().setBackground(darkMode ? darkLogArea : lightLogArea);
+                // Style the scrollbar
+                JScrollBar vScroll = scrollPane.getVerticalScrollBar();
+                JScrollBar hScroll = scrollPane.getHorizontalScrollBar();
+                vScroll.setBackground(darkMode ? darkBackground : lightBackground);
+                hScroll.setBackground(darkMode ? darkBackground : lightBackground);
+            }
+            
+            if (c instanceof JButton) {
+                JButton button = (JButton) c;
+                button.setBackground(darkMode ? darkButtonBg : lightButtonBg);
+                button.setForeground(darkMode ? darkText : Color.WHITE);
+                button.setFocusPainted(false);
+                
+                // Add hover effect
+                button.addMouseListener(new java.awt.event.MouseAdapter() {
+                    public void mouseEntered(java.awt.event.MouseEvent evt) {
+                        button.setBackground(darkMode ? darkButtonHover : lightButtonHover);
+                    }
 
-    private Component findComponent(Container container, Class<?> componentClass) {
-        for (Component c : container.getComponents()) {
-            if (componentClass.isInstance(c)) {
-                return c;
+                    public void mouseExited(java.awt.event.MouseEvent evt) {
+                        button.setBackground(darkMode ? darkButtonBg : lightButtonBg);
+                    }
+                });
             }
+            
+            if (c instanceof JComboBox) {
+                JComboBox<?> combo = (JComboBox<?>) c;
+                combo.setBackground(darkMode ? darkLogArea : lightLogArea);
+                combo.setForeground(darkMode ? darkText : lightText);
+            }
+            
+            if (c instanceof JLabel) {
+                ((JLabel) c).setForeground(darkMode ? darkText : lightText);
+            }
+            
+            // Recursively style any sub-containers
             if (c instanceof Container) {
-                Component found = findComponent((Container) c, componentClass);
-                if (found != null) {
-                    return found;
-                }
+                styleFileChooserDialog((Container) c);
             }
         }
-        return null;
     }
 
     public static void main(String[] args) {
